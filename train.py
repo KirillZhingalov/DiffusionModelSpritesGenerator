@@ -97,7 +97,7 @@ def train(args: ap.Namespace) -> None:
             optim.step()
 
         # save model periodically
-        if ep%4==0 or ep == int(args.n_epoch - 1):
+        if ep and not ep % 4:
             if not os.path.exists(args.save_dir):
                 os.mkdir(args.save_dir)
             torch.save(nn_model.state_dict(), args.save_dir + f"context_model_{ep}.pth")

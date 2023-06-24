@@ -42,57 +42,59 @@ def denoise_ddim(
 
 # sample quickly using DDIM
 @torch.no_grad()
-def sample_ddim(model: nn.Module, n_sample: int, image_size: int, device: torch.device, timesteps: int, n=20):
+def sample_ddim(
+    model: nn.Module, 
+    ctx: torch.Tensor, 
+    n_samples: int, 
+    image_size: int, 
+    device: torch.device, 
+    timestaps: int, 
+    n: int = 20
+) -> torch.Tensor:
+    
     # x_T ~ N(0, 1), sample initial noise
-    samples = torch.randn(n_sample, 3, image_size, image_size).to(device)  
+    samples = torch.randn(n_samples, 3, image_size, image_size).to(device)  
 
-    # array to keep track of generated steps for plotting
-    intermediate = [] 
-    step_size = timesteps // n
-    for i in range(timesteps, 0, -step_size):
+    # array to keep track of generated steps for plotting 
+    step_size = timestaps // n
+    for i in range(timestaps, 0, -step_size):
         print(f'sampling timestep {i:3d}', end='\r')
 
         # reshape time tensor
-        t = torch.tensor([i / timesteps])[:, None, None, None].to(device)
+        t = torch.tensor([i / timestaps])[:, None, None, None].to(device)
 
-        eps = model(samples, t)    # predict noise e_(x_t,t)
+        eps = model(samples, t, c=ctx)    # predict noise e_(x_t,t)
         samples = denoise_ddim(samples, i, i - step_size, eps)
-        intermediate.append(samples.detach().cpu().numpy())
 
-    intermediate = np.stack(intermediate)
-    return samples, intermediate
+    return samples
 
 
 # sample using standard algorithm
 @torch.no_grad()
 def sample_ddpm(
     model: nn.Module, 
-    n_sample: int, 
+    ctx: torch.Tensor,
+    n_samples: int, 
     image_size: int, 
     device: torch.device, 
-    timesteps: int, 
-    n: int = 20, 
-    save_rate: int = 1
-) -> tp.Tuple[tp.List[np.ndarray], tp.List[np.ndarray]]:
+    timestaps: int, 
+) -> torch.Tensor:
     
     # x_T ~ N(0, 1), sample initial noise
-    samples = torch.randn(n_sample, 3, image_size, image_size).to(device)  
+    samples = torch.randn(n_samples, 3, image_size, image_size).to(device)  
 
     # array to keep track of generated steps for plotting
     intermediate = [] 
-    for i in range(timesteps, 0, -1):
+    for i in range(timestaps, 0, -1):
         print(f'sampling timestep {i:3d}', end='\r')
 
         # reshape time tensor
-        t = torch.tensor([i / timesteps])[:, None, None, None].to(device)
+        t = torch.tensor([i / timestaps])[:, None, None, None].to(device)
 
         # sample some random noise to inject back in. For i = 1, don't add back in noise
         z = torch.randn_like(samples) if i > 1 else 0
 
-        eps = model(samples, t)    # predict noise e_(x_t,t)
+        eps = model(samples, t, c=ctx)    # predict noise e_(x_t,t)
         samples = denoise_add_noise(samples, i, eps, z)
-        if i % save_rate == 0 or i==timesteps or i<8:
-            intermediate.append(samples.detach().cpu().numpy())
 
-    intermediate = np.stack(intermediate)
-    return samples, intermediate
+    return samples
